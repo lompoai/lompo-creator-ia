@@ -1,3 +1,5 @@
 name = "lompo-creator-ia"
 main = "worker.js"
 compatibility_date = "2026-08-26"
+[ai]
+binding = "AI"
