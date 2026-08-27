@@ -1,9 +1,10 @@
 export default {
-  // Deploy Cloudflare
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    // =========================================================
     // API : génération de contenu
+    // =========================================================
     if (url.pathname === "/api/generate" && request.method === "POST") {
       try {
         const data = await request.json();
@@ -20,10 +21,9 @@ export default {
           }, 400);
         }
 
-        /*
-         * Si Workers AI est configuré sur Cloudflare,
-         * on utilise le modèle IA.
-         */
+        // =====================================================
+        // Workers AI
+        // =====================================================
         if (env.AI) {
           const prompt = `
 Tu es Lompo Creator IA, un assistant expert en création de contenu,
@@ -64,48 +64,56 @@ FORMAT :
 - N'utilise jamais ##.
 - N'utilise jamais # pour créer des titres.
 - N'utilise jamais de texte entre astérisques.
-- N'ajoute pas "Voici votre publication", "Voici le contenu" ou une formule similaire.
+- N'ajoute pas "Voici votre publication".
+- N'ajoute pas "Voici le contenu".
+- N'ajoute aucune formule d'introduction inutile.
 - Le résultat doit être propre et directement copiable et publiable.
 `;
+
+          const messages = [
             {
-              messages: [
-                {
-                  role: "system",
-                  content:
-                    "Tu es Lompo Creator IA, expert en création de contenu digital."
-                },
-                {
-                  role: "user",
-                  content: prompt
-                }
-              ]
+              role: "system",
+              content:
+                "Tu es Lompo Creator IA, expert en création de contenu digital, marketing et communication."
+            },
+            {
+              role: "user",
+              content: prompt
             }
-                  }
-      ]
-    }
-  );
+          ];
 
-  let content = result?.response ||
-                result?.result?.response ||
-                "Aucun contenu généré.";
+          // Appel réel à Workers AI
+          const result = await env.AI.run(
+            "@cf/meta/llama-3.1-8b-instruct",
+            {
+              messages,
+              max_tokens: 800,
+              temperature: 0.7
+            }
+          );
 
-  content = content
-    .replace(/\*\*/g, "")
-    .replace(/^#{1,6}\s*/gm, "")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .trim();
-         
+          let content =
+            result?.response ||
+            result?.result?.response ||
+            "Aucun contenu généré.";
+
+          // Nettoyage du Markdown éventuel
+          content = content
+            .replace(/\*\*/g, "")
+            .replace(/^#{1,6}\s*/gm, "")
+            .replace(/\*([^*]+)\*/g, "$1")
+            .trim();
 
           return json({
             success: true,
-            content:
-              result?.response ||
-              result?.result?.response ||
-              "Aucun contenu généré."
+            content: content,
+            mode: "ai"
           });
         }
 
-        // Mode de secours si l'IA n'est pas encore connectée.
+        // =====================================================
+        // Mode de secours si Workers AI n'est pas disponible
+        // =====================================================
         const fallback = createFallbackContent(
           type,
           subject,
@@ -123,12 +131,14 @@ FORMAT :
         return json({
           success: false,
           error: "Erreur lors de la génération.",
-          details: error.message
+          details: error?.message || "Erreur inconnue."
         }, 500);
       }
     }
 
+    // =========================================================
     // API : génération de prompt
+    // =========================================================
     if (url.pathname === "/api/prompt" && request.method === "POST") {
       try {
         const data = await request.json();
@@ -170,12 +180,15 @@ Direction artistique :
       } catch (error) {
         return json({
           success: false,
-          error: "Erreur lors de la création du prompt."
+          error: "Erreur lors de la création du prompt.",
+          details: error?.message || "Erreur inconnue."
         }, 500);
       }
     }
 
+    // =========================================================
     // Page principale
+    // =========================================================
     if (request.method === "GET") {
       return new Response(HTML_PAGE, {
         headers: {
@@ -189,6 +202,9 @@ Direction artistique :
 };
 
 
+// =============================================================
+// Fonction JSON
+// =============================================================
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -200,7 +216,11 @@ function json(data, status = 200) {
 }
 
 
+// =============================================================
+// Contenu de secours
+// =============================================================
 function createFallbackContent(type, subject, platform, tone) {
+
   if (type === "publicite") {
     return `🔥 ${subject}
 
@@ -248,17 +268,26 @@ qui inspire confiance.
 }
 
 
+// =============================================================
+// PAGE HTML
+// =============================================================
 const HTML_PAGE = `
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+>
 
 <title>Lompo Creator IA</title>
 
 <style>
+
 * {
   box-sizing: border-box;
 }
@@ -360,52 +389,108 @@ button:active {
   margin-top: 12px;
   font-size: 13px;
 }
+
 </style>
+
 </head>
 
 <body>
 
 <header>
+
   <div class="container">
+
     <h1>✨ Lompo Creator IA</h1>
-    <p>Ton assistant intelligent pour créer du contenu professionnel.</p>
-    <span class="badge">Création • Marketing • Business</span>
+
+    <p>
+      Ton assistant intelligent pour créer du contenu professionnel.
+    </p>
+
+    <span class="badge">
+      Création • Marketing • Business
+    </span>
+
   </div>
+
 </header>
+
 
 <main class="container">
 
+
+  <!-- CRÉATION DE CONTENU -->
+
   <div class="card">
+
     <h2>🚀 Créer un contenu</h2>
+
 
     <label>Type de contenu</label>
 
     <select id="type">
-      <option value="publication">Publication</option>
-      <option value="publicite">Publicité</option>
-      <option value="accroche">Accroche</option>
-      <option value="prompt">Prompt IA</option>
+
+      <option value="publication">
+        Publication
+      </option>
+
+      <option value="publicite">
+        Publicité
+      </option>
+
+      <option value="accroche">
+        Accroche
+      </option>
+
+      <option value="prompt">
+        Prompt IA
+      </option>
+
     </select>
+
 
     <label>Plateforme</label>
 
     <select id="platform">
+
       <option>Facebook</option>
+
       <option>Instagram</option>
+
       <option>WhatsApp</option>
+
       <option>TikTok</option>
+
       <option>LinkedIn</option>
+
     </select>
+
 
     <label>Ton</label>
 
     <select id="tone">
-      <option value="professionnel">Professionnel</option>
-      <option value="accrocheur">Accrocheur</option>
-      <option value="premium">Premium</option>
-      <option value="persuasif">Persuasif</option>
-      <option value="simple">Simple</option>
+
+      <option value="professionnel">
+        Professionnel
+      </option>
+
+      <option value="accrocheur">
+        Accrocheur
+      </option>
+
+      <option value="premium">
+        Premium
+      </option>
+
+      <option value="persuasif">
+        Persuasif
+      </option>
+
+      <option value="simple">
+        Simple
+      </option>
+
     </select>
+
 
     <label>Ton sujet</label>
 
@@ -414,16 +499,26 @@ button:active {
       placeholder="Exemple : publicité pour vendre mes services de création de flyers..."
     ></textarea>
 
+
     <button onclick="generateContent()">
       ✨ Générer avec Lompo Creator IA
     </button>
 
-    <div id="contentResult" class="result hidden"></div>
+
+    <div
+      id="contentResult"
+      class="result hidden"
+    ></div>
+
   </div>
 
 
+  <!-- GÉNÉRATEUR DE PROMPTS -->
+
   <div class="card">
+
     <h2>🎨 Générateur de prompts</h2>
+
 
     <label>Sujet de l'image</label>
 
@@ -432,123 +527,229 @@ button:active {
       placeholder="Exemple : entrepreneur africain travaillant sur son ordinateur..."
     ></textarea>
 
+
     <label>Style</label>
 
     <select id="promptStyle">
-      <option value="premium">Premium</option>
-      <option value="réaliste">Réaliste</option>
-      <option value="cinématographique">Cinématographique</option>
-      <option value="publicitaire">Publicitaire</option>
-      <option value="3D">3D</option>
+
+      <option value="premium">
+        Premium
+      </option>
+
+      <option value="réaliste">
+        Réaliste
+      </option>
+
+      <option value="cinématographique">
+        Cinématographique
+      </option>
+
+      <option value="publicitaire">
+        Publicitaire
+      </option>
+
+      <option value="3D">
+        3D
+      </option>
+
     </select>
+
 
     <button onclick="generatePrompt()">
       🎨 Créer le prompt
     </button>
 
-    <div id="promptResult" class="result hidden"></div>
+
+    <div
+      id="promptResult"
+      class="result hidden"
+    ></div>
+
   </div>
+
 
 </main>
 
 
 <script>
 
+
+// ============================================================
+// GÉNÉRATION DE CONTENU
+// ============================================================
+
 async function generateContent() {
 
-  const result = document.getElementById("contentResult");
+  const result =
+    document.getElementById("contentResult");
 
   const subject =
     document.getElementById("subject").value.trim();
 
+
   if (!subject) {
+
     alert("Entre d'abord ton sujet.");
+
     return;
   }
 
+
   result.classList.remove("hidden");
-  result.textContent = "⏳ Lompo Creator IA travaille...";
+
+  result.textContent =
+    "⏳ Lompo Creator IA travaille...";
+
 
   try {
 
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        type: document.getElementById("type").value,
-        platform: document.getElementById("platform").value,
-        tone: document.getElementById("tone").value,
-        subject: subject
-      })
-    });
+    const response = await fetch(
+      "/api/generate",
+      {
+        method: "POST",
 
-    const data = await response.json();
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+
+          type:
+            document.getElementById("type").value,
+
+          platform:
+            document.getElementById("platform").value,
+
+          tone:
+            document.getElementById("tone").value,
+
+          subject:
+            subject
+
+        })
+      }
+    );
+
+
+    const data =
+      await response.json();
+
 
     if (!data.success) {
+
       result.textContent =
-        "❌ " + (data.error || "Une erreur est survenue.");
+        "❌ " +
+        (
+          data.error ||
+          "Une erreur est survenue."
+        );
+
       return;
     }
 
-    result.textContent = data.content;
+
+    result.textContent =
+      data.content;
+
 
   } catch (error) {
 
     result.textContent =
       "❌ Impossible de contacter le serveur.";
+
   }
+
 }
 
 
+// ============================================================
+// GÉNÉRATION DE PROMPT
+// ============================================================
+
 async function generatePrompt() {
 
-  const result = document.getElementById("promptResult");
+  const result =
+    document.getElementById("promptResult");
 
   const subject =
-    document.getElementById("promptSubject").value.trim();
+    document
+      .getElementById("promptSubject")
+      .value
+      .trim();
+
 
   if (!subject) {
+
     alert("Entre le sujet de ton image.");
+
     return;
   }
 
+
   result.classList.remove("hidden");
-  result.textContent = "⏳ Création du prompt...";
+
+  result.textContent =
+    "⏳ Création du prompt...";
+
 
   try {
 
-    const response = await fetch("/api/prompt", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        subject: subject,
-        style: document.getElementById("promptStyle").value
-      })
-    });
+    const response = await fetch(
+      "/api/prompt",
+      {
+        method: "POST",
 
-    const data = await response.json();
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify({
+
+          subject: subject,
+
+          style:
+            document
+              .getElementById("promptStyle")
+              .value
+
+        })
+      }
+    );
+
+
+    const data =
+      await response.json();
+
 
     if (!data.success) {
+
       result.textContent =
-        "❌ " + (data.error || "Erreur.");
+        "❌ " +
+        (
+          data.error ||
+          "Erreur."
+        );
+
       return;
     }
 
-    result.textContent = data.prompt;
+
+    result.textContent =
+      data.prompt;
+
 
   } catch (error) {
 
     result.textContent =
       "❌ Impossible de contacter le serveur.";
+
   }
+
 }
 
 </script>
 
 </body>
+
 </html>
 `;
