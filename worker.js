@@ -940,7 +940,6 @@ const HTML_PAGE = `
 <title>Lompo Creator IA</title>
 
 <style>
-`;
 * {
   box-sizing: border-box;
 }
