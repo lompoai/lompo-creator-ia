@@ -438,6 +438,7 @@ Aucun titre technique.
           return json({
             success: true,
             content,
+            prompt: content,
             mode: "ai"
           });
         }
@@ -2484,18 +2485,22 @@ data.error ||
 
 }
 
-lastPrompt =
-String(
-data.prompt || ""
-).trim();
+const generatedPrompt =
+  String(data.prompt || "").trim();
 
-result.textContent =
-lastPrompt ||
-"Aucun prompt généré.";
+if (!generatedPrompt) {
+  throw new Error(
+    "Le serveur a répondu sans générer de prompt."
+  );
+}
+
+lastPrompt = generatedPrompt;
+
+result.textContent = lastPrompt;
 
 showStatus(
-"✅ Prompt généré !",
-"success"
+  "✅ Prompt généré !",
+  "success"
 );
 
 } catch (error) {
